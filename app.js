@@ -1,4 +1,4 @@
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = localStorage.getItem('study-tracker-username') || '';
 let dailyMinutes = {};
@@ -29,7 +29,7 @@ function showToast(msg) {
 
 async function loadUserData() {
   if (!currentUser) { dailyMinutes = {}; return; }
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('study_sessions')
     .select('daily_minutes')
     .eq('username', currentUser)
@@ -107,7 +107,7 @@ async function persistMinutes(iso, addMinutes) {
   const totalMinutes = Object.values(dailyMinutes).reduce((a, b) => a + b, 0);
   const totalHours = totalMinutes / 60;
 
-  const { error } = await supabase
+  const { error } = await db
     .from('study_sessions')
     .upsert({
       username: currentUser,
@@ -190,7 +190,7 @@ async function loadRanking() {
   const list = document.getElementById('ranking-list');
   list.innerHTML = '<p class="muted">Cargando...</p>';
 
-  const { data, error } = await supabase
+  const { data, error } = await db
     .from('study_sessions')
     .select('username, total_hours')
     .order('total_hours', { ascending: false });
@@ -215,7 +215,7 @@ async function loadRanking() {
 document.getElementById('refresh-ranking').addEventListener('click', loadRanking);
 
 // Suscripción en tiempo real: si tu amigo guarda, tu ranking se actualiza solo
-supabase
+db
   .channel('study_sessions_changes')
   .on('postgres_changes', { event: '*', schema: 'public', table: 'study_sessions' }, () => {
     loadRanking();
