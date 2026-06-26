@@ -1,5 +1,25 @@
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const SUN_ICON = '<circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+const MOON_ICON = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('theme-icon').innerHTML = theme === 'dark' ? SUN_ICON : MOON_ICON;
+  localStorage.setItem('study-tracker-theme', theme);
+}
+
+const savedTheme = localStorage.getItem('study-tracker-theme') ||
+  (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+applyTheme(savedTheme);
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+  renderHeatmap();
+  loadRanking();
+});
+
 let currentUser = localStorage.getItem('study-tracker-username') || '';
 let dailyMinutes = {};
 let timerInterval = null;
@@ -43,6 +63,11 @@ function dayMinutes(iso) {
 }
 
 function renderHeatmap() {
+  const css = getComputedStyle(document.documentElement);
+  const cellEmpty = css.getPropertyValue('--cell-empty').trim();
+  const border = css.getPropertyValue('--border').trim();
+  const textMuted = css.getPropertyValue('--text-muted').trim();
+
   const year = new Date().getFullYear();
   const start = new Date(year, 0, 1);
   const end = new Date(year, 11, 31);
@@ -72,14 +97,14 @@ function renderHeatmap() {
     const m = firstValid ? firstValid.getMonth() : lastMonth;
     let label = '';
     if (firstValid && m !== lastMonth) { label = months[m]; lastMonth = m; }
-    monthLabelsHtml += `<div style="width:13px; font-size:11px; color:#898781; flex-shrink:0;">${label}</div>`;
+    monthLabelsHtml += `<div style="width:13px; font-size:11px; color:${textMuted}; flex-shrink:0;">${label}</div>`;
   });
   monthLabelsHtml += '</div>';
 
   const dayLabels = ['L', '', 'M', '', 'V', '', ''];
   let gridHtml = '<div style="display:flex;">';
   gridHtml += '<div style="display:flex; flex-direction:column; gap:3px; margin-right:6px; width:22px;">';
-  dayLabels.forEach(l => gridHtml += `<div style="height:13px; font-size:10px; color:#898781; display:flex; align-items:center;">${l}</div>`);
+  dayLabels.forEach(l => gridHtml += `<div style="height:13px; font-size:10px; color:${textMuted}; display:flex; align-items:center;">${l}</div>`);
   gridHtml += '</div>';
 
   weeks.forEach(w => {
@@ -91,9 +116,9 @@ function renderHeatmap() {
       const hrs = mins / 60;
       const lvl = levelFromHours(hrs);
       const isFuture = d > new Date();
-      const bg = isFuture ? '#1a1a19' : levelColors[lvl];
-      const border = lvl === 0 ? '0.5px solid #3a3a38' : 'none';
-      gridHtml += `<div class="day-cell" title="${iso}: ${hrs.toFixed(1)}h" style="width:13px;height:13px;border-radius:2px;background:${bg};border:${border};"></div>`;
+      const bg = isFuture ? cellEmpty : levelColors[lvl];
+      const cellBorder = lvl === 0 ? '0.5px solid ' + border : 'none';
+      gridHtml += `<div class="day-cell" title="${iso}: ${hrs.toFixed(1)}h" style="width:13px;height:13px;border-radius:2px;background:${bg};border:${cellBorder};"></div>`;
     });
     gridHtml += '</div>';
   });
@@ -177,17 +202,11 @@ document.getElementById('cancel-focus').addEventListener('click', () => {
   showToast('Sesión cancelada, no se guardó');
 });
 
-document.getElementById('add-manual').addEventListener('click', async () => {
-  if (!currentUser) { document.getElementById('username').focus(); return; }
-  const mins = parseInt(document.getElementById('manual-minutes').value);
-  if (!mins || mins <= 0) return;
-  await persistMinutes(todayISO(), mins);
-  document.getElementById('manual-minutes').value = '';
-  showToast('Agregado: +' + mins + ' min');
-});
-
 async function loadRanking() {
   const list = document.getElementById('ranking-list');
+  const css = getComputedStyle(document.documentElement);
+  const textColor = css.getPropertyValue('--text').trim();
+  const accentColor = css.getPropertyValue('--accent').trim();
   list.innerHTML = '<p class="muted">Cargando...</p>';
 
   const { data, error } = await db
@@ -205,7 +224,7 @@ async function loadRanking() {
     row.className = 'ranking-row' + (isMe ? ' me' : '');
     row.innerHTML = `
       <span class="muted" style="width:18px;">${i + 1}</span>
-      <span style="flex:1; font-weight:500; color:${isMe ? '#97C459' : '#e8e8e3'};">${entry.username}${isMe ? ' (tú)' : ''}</span>
+      <span style="flex:1; font-weight:500; color:${isMe ? accentColor : textColor};">${entry.username}${isMe ? ' (tú)' : ''}</span>
       <span style="font-weight:500;">${Number(entry.total_hours).toFixed(1)}h</span>
     `;
     list.appendChild(row);
